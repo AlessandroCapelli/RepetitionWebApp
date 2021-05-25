@@ -2,11 +2,18 @@ package com.company.repetitionwebapp.service;
 
 import com.company.repetitionwebapp.config.Constants;
 import com.company.repetitionwebapp.domain.Authority;
+import com.company.repetitionwebapp.domain.Student;
+import com.company.repetitionwebapp.domain.Subject;
+import com.company.repetitionwebapp.domain.Tutor;
 import com.company.repetitionwebapp.domain.User;
 import com.company.repetitionwebapp.repository.AuthorityRepository;
+import com.company.repetitionwebapp.repository.StudentRepository;
+import com.company.repetitionwebapp.repository.SubjectRepository;
+import com.company.repetitionwebapp.repository.TutorRepository;
 import com.company.repetitionwebapp.repository.UserRepository;
 import com.company.repetitionwebapp.security.AuthoritiesConstants;
 import com.company.repetitionwebapp.security.SecurityUtils;
+import com.company.repetitionwebapp.service.dto.ManagedUserVM;
 import com.company.repetitionwebapp.service.dto.UserDTO;
 import io.github.jhipster.security.RandomUtil;
 import java.time.Instant;
@@ -33,6 +40,12 @@ public class UserService {
 
     private final UserRepository userRepository;
 
+    private final SubjectRepository subjectRepository;
+
+    private final TutorRepository tutorRepository;
+
+    private final StudentRepository studentRepository;
+
     private final PasswordEncoder passwordEncoder;
 
     private final AuthorityRepository authorityRepository;
@@ -41,12 +54,18 @@ public class UserService {
 
     public UserService(
         UserRepository userRepository,
+        StudentRepository studentRepository,
+        TutorRepository tutorRepository,
         PasswordEncoder passwordEncoder,
         AuthorityRepository authorityRepository,
+        SubjectRepository subjectRepository,
         CacheManager cacheManager
     ) {
         this.userRepository = userRepository;
+        this.studentRepository = studentRepository;
+        this.tutorRepository = tutorRepository;
         this.passwordEncoder = passwordEncoder;
+        this.subjectRepository = subjectRepository;
         this.authorityRepository = authorityRepository;
         this.cacheManager = cacheManager;
     }
@@ -97,7 +116,7 @@ public class UserService {
             );
     }
 
-    public User registerUser(UserDTO userDTO, String password) {
+    public User registerUser(ManagedUserVM userDTO, String password) {
         userRepository
             .findOneByLogin(userDTO.getLogin().toLowerCase())
             .ifPresent(
@@ -136,6 +155,28 @@ public class UserService {
         newUser.setActivationKey(RandomUtil.generateActivationKey());
         Set<Authority> authorities = new HashSet<>();
         authorityRepository.findById(AuthoritiesConstants.USER).ifPresent(authorities::add);
+
+        if (userDTO.getIsStudent()) {
+            Student newStudent = new Student();
+            newStudent.setName(userDTO.getFirstName());
+            newStudent.setSurname(userDTO.getLastName());
+            newStudent.setUser(newUser);
+            newStudent.setDateCreated(Instant.now());
+            newStudent.setBirthDate(userDTO.getBirthdate().toInstant());
+            studentRepository.save(newStudent);
+            authorityRepository.findById(AuthoritiesConstants.STUDENT).ifPresent(authorities::add);
+        } else {
+            Tutor newTutor = new Tutor();
+            newTutor.setDateCreated(Instant.now());
+            newTutor.setDegree(userDTO.getDegree());
+            newTutor.setName(userDTO.getFirstName());
+            newTutor.setSurname(userDTO.getLastName());
+            newTutor.setSubjects(returnSubjects(userDTO.getSubject()));
+            newTutor.setBirthDate(userDTO.getBirthdate().toInstant());
+            newTutor.setUser(newUser);
+            tutorRepository.save(newTutor);
+            authorityRepository.findById(AuthoritiesConstants.TUTOR).ifPresent(authorities::add);
+        }
         newUser.setAuthorities(authorities);
         userRepository.save(newUser);
         this.clearUserCaches(newUser);
@@ -147,6 +188,28 @@ public class UserService {
         if (existingUser.getActivated()) {
             return false;
         }
+        tutorRepository
+            .findAll()
+            .stream()
+            .filter(t -> t.getUser() != null && t.getUser().getId() == existingUser.getId())
+            .findFirst()
+            .ifPresent(
+                t -> {
+                    tutorRepository.delete(t);
+                }
+            );
+
+        studentRepository
+            .findAll()
+            .stream()
+            .filter(s -> s.getUser() != null && s.getUser().getId() == existingUser.getId())
+            .findFirst()
+            .ifPresent(
+                s -> {
+                    studentRepository.delete(s);
+                }
+            );
+
         userRepository.delete(existingUser);
         userRepository.flush();
         this.clearUserCaches(existingUser);
@@ -241,7 +304,8 @@ public class UserService {
     }
 
     /**
-     * Update basic information (first name, last name, email, language) for the current user.
+     * Update basic information (first name, last name, email, language) for the
+     * current user.
      *
      * @param firstName first name of user.
      * @param lastName  last name of user.
@@ -322,6 +386,7 @@ public class UserService {
 
     /**
      * Gets a list of all the authorities.
+     *
      * @return a list of all the authorities.
      */
     @Transactional(readOnly = true)
@@ -334,5 +399,20 @@ public class UserService {
         if (user.getEmail() != null) {
             Objects.requireNonNull(cacheManager.getCache(UserRepository.USERS_BY_EMAIL_CACHE)).evict(user.getEmail());
         }
+    }
+
+    private Set<Subject> returnSubjects(ArrayList<Number> subjects) {
+        Set<Subject> newSubjects = new HashSet<Subject>();
+
+        System.out.println("*************************************************************");
+        System.out.println(subjects);
+        System.out.println("*************************************************************");
+
+        for (Number id : subjects) newSubjects.add(subjectRepository.findById(id.longValue()).get());
+
+        System.out.println("*************************************************************");
+        System.out.println("*************************************************************");
+
+        return newSubjects;
     }
 }

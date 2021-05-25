@@ -1,0 +1,14 @@
+{
+  "repetitionWebApp": {
+    "historyRepetitionStudent": {
+      "home": {
+        "title": "History Repetition",
+        "notFound": "No Repetition found"
+      },
+      "duration": "Duration: {{ param }} minutes",
+      "price": "Price: {{ param }} minutes",
+      "topic": "Topic: {{ param }} €",
+      "additionalNote": "Additional Note: {{ param }}"
+    }
+  }
+}

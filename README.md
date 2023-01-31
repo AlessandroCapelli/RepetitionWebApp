@@ -1,6 +1,6 @@
 # Repetition WebApp
 
-## Members
+## Developers
 
 - Beltramelli Fabio
 - Bucci Davide
